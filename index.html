@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>¿Qué preferirías? — Historia Argentina</title>
+<style>
+  :root{
+    --bg:#f4f1ea; --card:#ffffff; --text:#1c1c1c; --muted:#6b6b6b;
+    --accent:#8e3b2f; --accent2:#2c3e50; --border:#e0dcd2;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{ --bg:#161513; --card:#211f1c; --text:#f2ede4; --muted:#a89f91; --border:#33302b; }
+  }
+  *{box-sizing:border-box;}
+  html,body{height:100%;}
+  body{
+    margin:0; background:var(--bg); color:var(--text);
+    font-family:'Georgia','Times New Roman',serif;
+    display:flex; align-items:center; justify-content:center; padding:24px 16px;
+    padding-top:calc(24px + env(safe-area-inset-top,0px));
+    padding-bottom:calc(24px + env(safe-area-inset-bottom,0px));
+  }
+  .wrap{ width:100%; max-width:560px; }
+  .badge{ font-family:Arial, sans-serif; font-size:12px; letter-spacing:2px; text-transform:uppercase; color:var(--accent); text-align:center; margin-bottom:6px; }
+  h1{ text-align:center; font-size:20px; margin:0 0 4px; }
+  .topic{ text-align:center; font-family:Arial, sans-serif; font-size:12px; color:var(--accent2); font-weight:bold; margin-bottom:18px; }
+  .card{ background:var(--card); border:1px solid var(--border); border-radius:14px; padding:24px 20px; box-shadow:0 6px 20px rgba(0,0,0,0.08); }
+  .q-count{ font-family:Arial, sans-serif; font-size:12px; color:var(--muted); text-align:center; margin-bottom:14px; }
+  .prompt{ text-align:center; font-size:18px; margin-bottom:20px; }
+  .options{ display:flex; flex-direction:column; gap:12px; }
+  .opt{ position:relative; border:2px solid var(--border); border-radius:10px; padding:16px; cursor:pointer; overflow:hidden; background:transparent; text-align:left; font-family:'Georgia',serif; font-size:16px; color:var(--text); }
+  .opt:hover{ border-color:var(--accent2); }
+  .opt.chosen{ border-color:var(--accent); }
+  .fill{ position:absolute; top:0; left:0; bottom:0; background:rgba(142,59,47,0.14); width:0%; transition:width .5s ease; z-index:0; }
+  .opt-label{ position:relative; z-index:1; display:flex; justify-content:space-between; align-items:center; gap:10px; }
+  .votes{ font-family:Arial, sans-serif; font-size:13px; color:var(--muted); white-space:nowrap; }
+  .opt[disabled]{ cursor:default; }
+  .nav{ display:flex; justify-content:space-between; margin-top:20px; font-family:Arial, sans-serif; }
+  button.nav-btn{ background:var(--accent2); color:#fff; border:none; border-radius:8px; padding:10px 16px; font-size:14px; cursor:pointer; }
+  button.nav-btn:disabled{ opacity:.4; cursor:default; }
+  .hint{ text-align:center; font-family:Arial, sans-serif; font-size:12px; color:var(--muted); margin-top:14px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="badge">¿Qué preferirías?</div>
+  <h1>📜 Historia Argentina</h1>
+  <div class="topic" id="topic"></div>
+  <div class="card">
+    <div class="q-count" id="qcount"></div>
+    <div class="prompt">¿Qué preferirías?</div>
+    <div class="options" id="options"></div>
+    <div class="nav">
+      <button class="nav-btn" id="prevBtn">← Anterior</button>
+      <button class="nav-btn" id="nextBtn">Siguiente →</button>
+    </div>
+    <div class="hint">Los votos se comparten entre todos los que abran esta página.</div>
+  </div>
+</div>
+
+<!-- ============================================= -->
+<!-- PEGÁ ACÁ TU firebaseConfig -->
+<!-- ============================================= -->
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+<script>
+  const firebaseConfig = {
+    apiKey: "AIzaSyCZ_OiPRIMDQtxNIfpmHr-up9K7QQY-Ty8",
+    authDomain: "juego-de-historia-9db03.firebaseapp.com",
+    databaseURL: "https://juego-de-historia-9db03-default-rtdb.firebaseio.com",
+    projectId: "juego-de-historia-9db03",
+    storageBucket: "juego-de-historia-9db03.firebasestorage.app",
+    messagingSenderId: "800095375693",
+    appId: "1:800095375693:web:6be8e6ebfb2cee71e9e704"
+  };
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.database();
+</script>
+<!-- ============================================= -->
+
+<script>
+const QUESTIONS = [
+  // --- De la caída de Rosas a la presidencia de Avellaneda ---
+  { id:"q1",  topic:"De Rosas a Avellaneda", a:"Pelear en Caseros junto a Urquiza contra Rosas", b:"Pelear en Pavón junto a Mitre contra Urquiza" },
+  { id:"q2",  topic:"De Rosas a Avellaneda", a:"Vivir en la Confederación Argentina con capital en Paraná", b:"Vivir en el Estado de Buenos Aires separado del resto del país" },
+  { id:"q3",  topic:"De Rosas a Avellaneda", a:"Ser diputado en el Congreso de la Confederación (1853)", b:"Ser dirigente porteño resistiendo la Constitución de 1853" },
+  { id:"q4",  topic:"De Rosas a Avellaneda", a:"Apoyar a Sarmiento y su plan de escuelas por todo el país", b:"Apoyar a Avellaneda y la federalización de Buenos Aires" },
+  { id:"q5",  topic:"De Rosas a Avellaneda", a:"Vivir el exilio de Rosas en Inglaterra", b:"Vivir el regreso de Urquiza a su estancia en Entre Ríos tras dejar el poder" },
+  { id:"q6",  topic:"De Rosas a Avellaneda", a:"Ser inmigrante europeo llegando en tiempos de Sarmiento", b:"Ser gaucho reclutado a la fuerza para el ejército de línea" },
+
+  // --- Presidencia de Bartolomé Mitre ---
+  { id:"q7",  topic:"Presidencia de Mitre", a:"Ser ministro de Mitre organizando el nuevo Estado nacional", b:"Ser caudillo del interior resistiendo al gobierno de Mitre" },
+  { id:"q8",  topic:"Presidencia de Mitre", a:"Viajar en el primer ferrocarril impulsado durante la presidencia de Mitre", b:"Fundar una de las primeras escuelas normales del período" },
+  { id:"q9",  topic:"Presidencia de Mitre", a:"Ser soldado unitario bajo el mando directo de Mitre", b:"Ser montonero federal luchando contra el ejército nacional" },
+  { id:"q10", topic:"Presidencia de Mitre", a:"Trabajar armando el primer censo nacional (1869)", b:"Trabajar en la organización del correo y el telégrafo nacional" },
+  { id:"q11", topic:"Presidencia de Mitre", a:"Ser periodista de 'La Nación', el diario fundado por Mitre", b:"Ser opositor político perseguido por criticar a Mitre" },
+
+  // --- Guerra de la Triple Alianza ---
+  { id:"q12", topic:"Guerra de la Triple Alianza", a:"Ser soldado argentino en la batalla de Curupaytí", b:"Ser soldado paraguayo defendiendo Curupaytí" },
+  { id:"q13", topic:"Guerra de la Triple Alianza", a:"Luchar del lado de la Triple Alianza (Argentina, Brasil y Uruguay)", b:"Luchar del lado de Paraguay bajo el mando de Solano López" },
+  { id:"q14", topic:"Guerra de la Triple Alianza", a:"Ser reclutado a la fuerza como gaucho para ir al frente de guerra", b:"Ser médico de campaña atendiendo heridos en plena guerra" },
+  { id:"q15", topic:"Guerra de la Triple Alianza", a:"Sobrevivir la guerra pero perder toda tu familia, como la mayoría del pueblo paraguayo", b:"No ir al frente pero vivir la epidemia de cólera que azotó a los ejércitos" },
+  { id:"q16", topic:"Guerra de la Triple Alianza", a:"Ser corresponsal enviando noticias de la guerra a Buenos Aires", b:"Ser oficial brasileño al mando de tropas en la campaña" },
+  { id:"q17", topic:"Guerra de la Triple Alianza", a:"Estar presente en la batalla final de Cerro Corá, donde muere Solano López", b:"Estar presente en la firma del Tratado de la Triple Alianza en 1865" },
+];
+
+let idx = 0;
+const votedKey = id => "voted_" + id;
+
+function render(){
+  const q = QUESTIONS[idx];
+  document.getElementById("topic").textContent = q.topic;
+  document.getElementById("qcount").textContent = `Pregunta ${idx+1} de ${QUESTIONS.length}`;
+  const optsDiv = document.getElementById("options");
+  optsDiv.innerHTML = "";
+  const already = localStorage.getItem(votedKey(q.id));
+
+  ["a","b"].forEach(key=>{
+    const btn = document.createElement("button");
+    btn.className = "opt" + (already===key ? " chosen" : "");
+    btn.innerHTML = `<div class="fill" data-fill="${key}"></div>
+      <div class="opt-label"><span>${key==="a"?q.a:q.b}</span><span class="votes" data-votes="${key}"></span></div>`;
+    if (already) btn.disabled = true;
+    btn.onclick = () => vote(q, key);
+    optsDiv.appendChild(btn);
+  });
+
+  document.getElementById("prevBtn").disabled = idx===0;
+  document.getElementById("nextBtn").disabled = idx===QUESTIONS.length-1;
+  if (!already) clearCounts();
+  subscribe(q);
+}
+
+function clearCounts(){
+  document.querySelectorAll('[data-votes]').forEach(el=> el.textContent = "");
+  document.querySelectorAll('[data-fill]').forEach(el=> el.style.width = "0%");
+}
+
+function vote(q, key){
+  if (localStorage.getItem(votedKey(q.id))) return;
+  localStorage.setItem(votedKey(q.id), key);
+  const ref = db.ref("votos/" + q.id + "/" + key);
+  ref.transaction(current => (current || 0) + 1);
+  render();
+}
+
+let currentRef = null;
+function subscribe(q){
+  if (currentRef) currentRef.off();
+  currentRef = db.ref("votos/" + q.id);
+  currentRef.on("value", snap=>{
+    const data = snap.val() || { a:0, b:0 };
+    const total = (data.a||0) + (data.b||0);
+    document.querySelectorAll('[data-fill]').forEach(el=>{
+      const k = el.getAttribute('data-fill');
+      const pct = total ? Math.round((data[k]||0)/total*100) : 0;
+      el.style.width = pct + "%";
+    });
+    document.querySelectorAll('[data-votes]').forEach(el=>{
+      const k = el.getAttribute('data-votes');
+      const n = data[k]||0;
+      el.textContent = n + (n===1 ? " persona" : " personas");
+    });
+  });
+}
+
+document.getElementById("prevBtn").onclick = ()=>{ if(idx>0){ idx--; render(); } };
+document.getElementById("nextBtn").onclick = ()=>{ if(idx<QUESTIONS.length-1){ idx++; render(); } };
+
+render();
+</script>
+</body>
+</html>
