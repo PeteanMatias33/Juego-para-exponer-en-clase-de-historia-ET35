@@ -66,6 +66,12 @@
   .finish-btn{ display:none; width:100%; margin-top:16px; background:var(--ok); color:#fff; border:none; border-radius:8px; padding:12px; font-size:15px; font-family:Arial, sans-serif; cursor:pointer; }
   .hint{ text-align:center; font-family:Arial, sans-serif; font-size:12px; color:var(--muted); margin-top:14px; }
 
+  .progress{ height:6px; background:var(--border); border-radius:99px; overflow:hidden; margin-bottom:14px; }
+  .progress-fill{ height:100%; width:0%; background:var(--accent); border-radius:99px; transition:width .4s ease; }
+  @keyframes fadeIn{ from{ opacity:0; transform:translateY(8px); } to{ opacity:1; transform:none; } }
+  .fade{ animation:fadeIn .35s ease; }
+  @media (prefers-reduced-motion: reduce){ .fade{ animation:none; } }
+
   /* Resultados */
   #results{ font-family:Arial, sans-serif; }
   .score-card{ background:var(--card); border:1px solid var(--border); border-radius:14px; padding:24px 20px; text-align:center; box-shadow:0 6px 20px rgba(0,0,0,0.08); margin-bottom:18px; }
@@ -101,6 +107,7 @@
   </div>
 
   <div class="card" id="game">
+    <div class="progress"><div class="progress-fill" id="progFill"></div></div>
     <div class="q-count" id="qcount"></div>
     <div class="prompt">Una es verdadera y la otra es una trampa. ¿Cuál es la correcta?</div>
     <div class="options" id="options"></div>
@@ -224,6 +231,7 @@ const DB_PATH = "votos_v2/";   // ruta nueva: no se mezcla con los votos del jue
 let idx = 0;
 let allVotes = {};
 let showingResults = false;
+let lastIdx = -1;   // para animar solo cuando cambia de pregunta
 
 const ansKey = id => "ans2_" + id;       // tu respuesta (se borra al volver a jugar)
 const countedKey = id => "counted2_" + id; // tu voto ya sumado (no se suma dos veces)
@@ -238,10 +246,16 @@ function render(){
   showingResults = false;
   document.getElementById("game").style.display = "";
   document.getElementById("nameCard").style.display = "none";
+  if (idx !== lastIdx) {                       // fundido suave al cambiar de pregunta
+    const g = document.getElementById("game");
+    g.classList.remove("fade"); void g.offsetWidth; g.classList.add("fade");
+    lastIdx = idx;
+  }
   document.getElementById("results").style.display = "none";
   const q = QUESTIONS[idx];
   const ans = getAns(q.id);
   const done = QUESTIONS.filter(x => getAns(x.id)).length;
+  document.getElementById("progFill").style.width = Math.round(done / QUESTIONS.length * 100) + "%";
 
   document.getElementById("topic").textContent = q.topic;
   document.getElementById("qcount").textContent = `Pregunta ${idx+1} de ${QUESTIONS.length} · Respondidas: ${done}`;
@@ -295,7 +309,7 @@ function paintCounts(){
   }
 }
 
-function showResults(){
+function showResults(celebrate){
   showingResults = true;
   document.getElementById("game").style.display = "none";
   document.getElementById("topic").textContent = "Resultados";
@@ -340,6 +354,36 @@ function showResults(){
   document.getElementById("restartBtn").onclick = restart;
   paintCounts();
   window.scrollTo({ top: 0, behavior: "smooth" });
+  if (celebrate) launchConfetti();
+}
+
+function launchConfetti(){
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  const c = document.createElement("canvas");
+  c.style.cssText = "position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:999";
+  document.body.appendChild(c);
+  const ctx = c.getContext("2d");
+  const W = c.width = innerWidth, H = c.height = innerHeight;
+  const colors = ["#8e3b2f", "#2c3e50", "#2e9e5b", "#f5c542", "#d64545", "#4aa3df"];
+  const parts = Array.from({ length: 160 }, () => ({
+    x: Math.random() * W, y: -20 - Math.random() * H * 0.6,
+    w: 6 + Math.random() * 6, h: 8 + Math.random() * 8,
+    vx: -2 + Math.random() * 4, vy: 2 + Math.random() * 4,
+    rot: Math.random() * 6.28, vr: -0.2 + Math.random() * 0.4,
+    color: colors[Math.floor(Math.random() * colors.length)]
+  }));
+  const start = performance.now();
+  (function frame(now){
+    ctx.clearRect(0, 0, W, H);
+    parts.forEach(p => {
+      p.x += p.vx; p.y += p.vy; p.vy += 0.03; p.rot += p.vr;
+      ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot);
+      ctx.fillStyle = p.color; ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+      ctx.restore();
+    });
+    if (now - start < 4500 && parts.some(p => p.y < H + 20)) requestAnimationFrame(frame);
+    else c.remove();
+  })(start);
 }
 
 function restart(){
@@ -357,10 +401,11 @@ document.getElementById("nextBtn").onclick = () => {
   if (!isRevealed(q.id)) { localStorage.setItem(revKey(q.id), "1"); render(); return; }  // 1° toque: muestra los votos
   if (idx < QUESTIONS.length - 1) { idx++; render(); }                                   // 2° toque: pasa a la siguiente
 };
-document.getElementById("finishBtn").onclick = showResults;
+document.getElementById("finishBtn").onclick = () => showResults(true);
 
 function showNameScreen(){
   showingResults = false;
+  lastIdx = -1;
   document.getElementById("game").style.display = "none";
   document.getElementById("results").style.display = "none";
   document.getElementById("nameCard").style.display = "";
