@@ -96,6 +96,7 @@
     <img src="escudo.png" alt="Escudo ET35" style="width:70px; height:auto;" onerror="this.style.display='none'">
   </div>
   <div class="badge">¿Cuál es la correcta?</div>
+  <div id="testBanner" style="display:none; text-align:center; font-family:Arial,sans-serif; font-size:12px; font-weight:bold; color:#fff; background:#d98b1f; border-radius:8px; padding:6px; margin-bottom:10px;">🧪 MODO PRUEBA: no se guardan votos ni puntajes</div>
   <h1>📜 Historia Argentina</h1>
   <div class="topic" id="topic"></div>
 
@@ -123,7 +124,7 @@
 
   <div style="text-align:center; font-family:Arial, sans-serif; font-size:11px; color:var(--muted); margin-top:16px; line-height:1.6;">
     Escuela Técnica N° 35 D.E. 18 "Ing. Eduardo Latzina"<br>
-    Integrantes: Petean Matías, Eiberth Estupiñán, Paulo Morin, Thomas Zúñiga<br>
+    Integrantes: Petean Matías, Eiberth Estupiñán<br>
     Página creada por Petean Matías
   </div>
 </div>
@@ -224,8 +225,15 @@ const QUESTIONS = [
     b:"Paraguay salió casi sin bajas: las pérdidas de la guerra fueron mínimas" },
 ];
 
-const RANK_PATH = "ranking_v2/";
-const nameKey = "player2_name", savedKey = "saved2", myRowKey = "myrow2";
+const RANK_PATH = "ranking_v3/";   // ruta nueva = tabla en cero
+// Modo prueba: abrí la página con ?test al final y no se guardan votos ni puntajes
+const TEST = new URLSearchParams(location.search).has("test");
+const P = TEST ? "t_" : "";   // en modo prueba las respuestas se guardan aparte
+const nameKey = "player2_name", savedKey = P + "saved2", myRowKey = P + "myrow2";
+// Un mismo nombre = una sola fila en la tabla (sin tildes ni mayúsculas)
+const nameId = n => n.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+                     .replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "") || "anon";
+if (TEST) document.getElementById("testBanner").style.display = "block";
 let playerName = localStorage.getItem(nameKey) || "";
 const DB_PATH = "votos_v2/";   // ruta nueva: no se mezcla con los votos del juego anterior
 let idx = 0;
@@ -233,10 +241,10 @@ let allVotes = {};
 let showingResults = false;
 let lastIdx = -1;   // para animar solo cuando cambia de pregunta
 
-const ansKey = id => "ans2_" + id;       // tu respuesta (se borra al volver a jugar)
-const countedKey = id => "counted2_" + id; // tu voto ya sumado (no se suma dos veces)
+const ansKey = id => P + "ans2_" + id;       // tu respuesta (se borra al volver a jugar)
+const countedKey = id => P + "counted2_" + id; // tu voto ya sumado (no se suma dos veces)
 const getAns = id => localStorage.getItem(ansKey(id));
-const revKey = id => "rev2_" + id;   // ya viste cuánta gente eligió cada opción
+const revKey = id => P + "rev2_" + id;   // ya viste cuánta gente eligió cada opción
 const isRevealed = id => !!localStorage.getItem(revKey(id));
 const allAnswered = () => QUESTIONS.every(q => getAns(q.id));
 const countsOf = id => { const d = allVotes[id] || {}; return { a: d.a || 0, b: d.b || 0 }; };
@@ -286,7 +294,7 @@ function vote(q, key){
   localStorage.setItem(ansKey(q.id), key);
   if (!localStorage.getItem(countedKey(q.id))) {
     localStorage.setItem(countedKey(q.id), "1");
-    db.ref(DB_PATH + q.id + "/" + key).transaction(c => (c || 0) + 1);
+    if (!TEST) db.ref(DB_PATH + q.id + "/" + key).transaction(c => (c || 0) + 1);
   }
   render();
 }
@@ -319,8 +327,14 @@ function showResults(celebrate){
   // Guarda tu puntaje en la tabla (una sola vez por intento)
   if (playerName && !localStorage.getItem(savedKey)) {
     localStorage.setItem(savedKey, "1");
-    const ref = db.ref(RANK_PATH).push({ name: playerName, score: score, total: total, t: firebase.database.ServerValue.TIMESTAMP });
-    localStorage.setItem(myRowKey, ref.key);
+    if (!TEST) {
+      const id = nameId(playerName);
+      db.ref(RANK_PATH + id).transaction(cur => {
+        if (cur && cur.score >= score) return cur;   // conserva el mejor puntaje
+        return { name: playerName, score: score, total: total, t: Date.now() };
+      });
+      localStorage.setItem(myRowKey, id);
+    }
     paintRanking();
   }
   const msg = pct >= 85 ? "¡Excelente! Dominás el tema 🏆"
@@ -435,7 +449,7 @@ function paintRanking(){
   document.getElementById("rankEmpty").style.display = rankRows.length ? "none" : "block";
   rankRows.forEach((r, i) => {
     const tr = document.createElement("tr");
-    if (r.key === mine) tr.className = "me";
+    if (nameId(String(r.name || "")) === mine) tr.className = "me";
     const pos = i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : String(i + 1);
     [pos, r.name, r.score + "/" + (r.total || QUESTIONS.length)].forEach((txt, j) => {
       const td = document.createElement("td");
@@ -448,7 +462,13 @@ function paintRanking(){
 }
 db.ref(RANK_PATH).on("value", snap => {
   const v = snap.val() || {};
-  rankRows = Object.keys(v).map(k => Object.assign({ key: k }, v[k]));
+  const best = {};
+  Object.keys(v).forEach(k => {
+    const r = v[k], id = nameId(String(r.name || ""));
+    const cur = best[id];
+    if (!cur || r.score > cur.score || (r.score === cur.score && (r.t || 0) < (cur.t || 0))) best[id] = Object.assign({ key: k }, r);
+  });
+  rankRows = Object.keys(best).map(id => best[id]);
   rankRows.sort((a, b) => (b.score - a.score) || ((a.t || 0) - (b.t || 0)));
   paintRanking();
 });
