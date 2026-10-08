@@ -1,36 +1,112 @@
 <!DOCTYPE html>
 <html lang="es"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>SaludIA – Información de salud confiable</title>
+<title>SaludIA</title>
 <style>
 :root{--g:#0f9d78;--bg:#f2f7f5;--t:#17302a}
 *{box-sizing:border-box}body{margin:0;font-family:system-ui,sans-serif;background:var(--bg);color:var(--t)}
-header{background:var(--g);color:#fff;padding:18px 16px;text-align:center}header h1{margin:0}header p{margin:4px 0 0}
+header{background:var(--g);color:#fff;padding:16px;text-align:center}header h1{margin:0}header p{margin:4px 0 0}
 .notice{background:#fff3cd;padding:10px 16px;text-align:center;font-size:.9rem}
 main{max-width:760px;margin:auto;padding:12px;display:grid;gap:12px}
 .card{background:#fff;border-radius:14px;padding:14px;box-shadow:0 1px 6px #0001}
 .emerg{border-left:6px solid #d62839;background:#fff0f1}
-#cats{display:flex;gap:6px;overflow-x:auto;padding-bottom:8px}
-#cats button{white-space:nowrap;border:1px solid var(--g);background:#fff;color:var(--g);border-radius:20px;padding:6px 12px;cursor:pointer}
-#cats button.on{background:var(--g);color:#fff}
-#msgs{height:340px;overflow-y:auto;display:flex;flex-direction:column;gap:8px;padding:6px 0}
-.m{padding:9px 12px;border-radius:12px;max-width:88%;white-space:pre-wrap}
+.chips{display:flex;gap:6px;overflow-x:auto;padding-bottom:8px}
+.chips button{white-space:nowrap;border:1px solid var(--g);background:#fff;color:var(--g);border-radius:20px;padding:6px 12px}
+.chips button.on{background:var(--g);color:#fff}
+#msgs{max-height:340px;min-height:120px;overflow-y:auto;display:flex;flex-direction:column;gap:8px;padding:6px 0}
+.m{padding:9px 12px;border-radius:12px;max-width:90%;white-space:pre-wrap}
 .u{background:var(--g);color:#fff;align-self:flex-end}.b{background:#eaf3f0;align-self:flex-start}
-.m small{display:block;margin-top:6px;opacity:.85}
-.row{display:flex;gap:6px}input{flex:1;padding:11px;border:1px solid #bbb;border-radius:10px;font-size:1rem}
-button{background:var(--g);color:#fff;border:0;border-radius:10px;padding:10px 16px;cursor:pointer;font-size:1rem}
+.m small{display:block;margin-top:6px}
+.row{display:flex;gap:6px;margin-top:6px}input{flex:1;min-width:0;padding:11px;border:1px solid #bbb;border-radius:10px;font-size:1rem}
+button{background:var(--g);color:#fff;border:0;border-radius:10px;padding:10px 16px;font-size:1rem}
 button.ghost{background:#fff;color:#a00;border:1px solid #a00;margin-top:8px}
 li{margin:6px 0}a{color:var(--g)}footer{text-align:center;padding:16px;font-size:.85rem}
 </style></head><body>
 <header><h1>💚 SaludIA</h1><p>Información de salud general y educativa, basada en fuentes oficiales.</p></header>
 <div class="notice">Esta herramienta proporciona información general y educativa. No reemplaza la evaluación de un profesional de la salud.</div>
 <main>
-<section class="card" id="chat">
- <div id="cats"></div>
- <div id="msgs" aria-live="polite"></div>
- <div class="row"><input id="q" placeholder="Escribí tu pregunta de salud…" maxlength="300">
- <button id="send">Enviar</button></div>
+<section class="card">
+ <div class="chips" id="cats"></div>
+ <div id="msgs"></div>
+ <div class="chips" id="ex"></div>
+ <div class="row"><input id="q" placeholder="Escribí tu pregunta de salud…" maxlength="300"><button id="send">Enviar</button></div>
  <small>No escribas nombre, DNI, dirección ni datos personales. Los datos se conservan durante un máximo de 30 días.</small>
 </section>
-<section class="card emerg" id="emergencias"><h2>🚨 Emergencias</h2>
-<p>Si ha
+<section class="card emerg"><h2>🚨 Emergencias</h2>
+<p>Si hay dificultad para respirar, pérdida de conocimiento, dolor de pecho, convulsiones, sangrado abundante, intoxicación o peligro de hacerte daño: <b>llamá al 911 o al 107</b> o andá a la guardia más cercana.</p></section>
+<section class="card"><h2>🕑 Historial reciente</h2>
+<p><small>Los datos se conservan durante un máximo de 30 días y se eliminan automáticamente.</small></p>
+<ul id="hist"></ul><button id="clear" class="ghost">Borrar mi historial ahora</button></section>
+<section class="card"><h2>📚 Fuentes y aval</h2>
+<p>Contenido basado en fuentes sanitarias oficiales. El contenido debe ser revisado y aprobado por un profesional o institución de salud antes de su utilización como herramienta sanitaria.</p>
+<p><b>Aval institucional:</b> <i>Pendiente. (Agregar acá la institución o profesional revisor.)</i></p>
+<ul id="srcs"></ul></section>
+</main><footer>Proyecto escolar · SaludIA</footer>
+<script>
+// ===== CONFIG: para IA real poné acá la URL de tu backend (worker.js). Vacío = modo demo. Nunca pongas claves acá. =====
+var CFG={API_URL:"",DAYS:30};
+// ===== BASE DE CONOCIMIENTO (aprobada:true solo si un profesional la verificó) =====
+var MS="Ministerio de Salud de la Nación Argentina",MSU="https://www.argentina.gob.ar/salud",OMS="Organización Mundial de la Salud (OMS)";
+function S(t,o,u,c,conf,k,txt){return{titulo:t,organismo:o,url:u,categoria:c,fechaConsulta:"2026-10-08",confiabilidad:conf,aprobada:true,keywords:k,contenido:txt};}
+var SOURCES=[
+S("Primeros auxilios en quemaduras","Cruz Roja","https://www.cruzroja.org.ar","Primeros auxilios","alta",["quem","agua caliente","ampolla","escald"],"Enfriá la zona con agua corriente fría (no helada) durante unos 20 minutos. No uses hielo, manteca, pasta dental ni otros remedios caseros, y no revientes las ampollas. Cubrí con un paño limpio. Buscá atención médica si la quemadura es grande, está en la cara, manos, genitales o articulaciones, es profunda, o si afecta a un niño pequeño."),
+S("Heridas y cortes","Cruz Roja","https://www.cruzroja.org.ar","Primeros auxilios","alta",["herida","corte","cortar","sangr","raspon"],"Lavate las manos, presioná la herida con un paño limpio y lavala con agua y jabón. Si el sangrado no se detiene tras unos 10 minutos de presión, o la herida es profunda o muy sucia, buscá atención médica. Si el sangrado es abundante, llamá al 911 o al 107."),
+S("Tos y resfríos",MS,MSU,"Prevención","media",["tos","toz","tose","resfri","gripe","catarro","moco"],"La tos suele acompañar resfríos y otras infecciones respiratorias leves. Ayuda descansar, tomar líquidos, ventilar los ambientes, evitar el humo del cigarrillo, cubrirte al toser y lavarte las manos. Consultá a un médico si la tos dura más de 2 o 3 semanas, si tenés fiebre alta que persiste, silbidos o dolor de pecho. Si te cuesta respirar, es una urgencia: llamá al 911 o al 107."),
+S("Fiebre",MS,MSU,"Prevención","media",["fiebre","temperatura","febril"],"La fiebre es una señal de que el cuerpo está reaccionando, muchas veces a una infección. Descansá y tomá líquidos. Consultá a un médico si dura más de 3 días, si es muy alta, o si aparece con rigidez de cuello, erupciones, confusión o dificultad para respirar (en esos casos, buscá atención urgente)."),
+S("Dolor de cabeza",MS,MSU,"Prevención","media",["cabeza","cefalea","migrana"],"Dormir bien, hidratarte, comer a horarios regulares y descansar la vista de las pantallas pueden ayudar. Consultá a un médico si el dolor es repentino e intenso, apareció tras un golpe, viene con fiebre y rigidez de cuello, confusión o debilidad, o si se repite con frecuencia."),
+S("Sueño saludable en adolescentes",MS,MSU,"Sueño","media",["dorm","sueno","insomnio","descans"],"En general se recomienda que los adolescentes duerman entre 8 y 10 horas por noche. Ayuda mantener horarios regulares, evitar pantallas antes de dormir y limitar la cafeína. Si el cansancio o los problemas para dormir persisten, consultá a un profesional de la salud."),
+S("Alimentación saludable",OMS,"https://www.who.int/es/news-room/fact-sheets/detail/healthy-diet","Alimentación","alta",["aliment","comer","comida","dieta","nutri","agua"],"Una alimentación saludable incluye frutas, verduras, legumbres, frutos secos y cereales integrales, y limita el azúcar libre, la sal y las grasas saturadas. Tomar agua en lugar de bebidas azucaradas también ayuda. Para un plan personalizado, consultá a un/a nutricionista."),
+S("Actividad física en jóvenes",OMS,"https://www.who.int/es/news-room/fact-sheets/detail/physical-activity","Actividad física","alta",["ejercicio","actividad fisica","deporte","entren","movimiento","sedentar"],"Para niños y adolescentes de 5 a 17 años, la OMS recomienda en promedio al menos 60 minutos diarios de actividad física de intensidad moderada a vigorosa, y limitar el tiempo sedentario frente a pantallas."),
+S("Cuidado de la salud mental","Organización Panamericana de la Salud (OPS)","https://www.paho.org/es","Salud mental","alta",["ansiedad","estres","triste","mental","deprim","animo","emocion","examen","nervio"],"Hablar con una persona de confianza, dormir bien, moverte y mantener vínculos ayudan al bienestar emocional. Si la tristeza, la ansiedad o el estrés te impiden hacer tu vida diaria, pedí ayuda a un profesional de salud mental. Si pensás en hacerte daño, llamá al 911 o al 107 ahora."),
+S("Higiene de manos",OMS,"https://www.who.int/es","Higiene","alta",["lavar","manos","higiene","jabon","dientes","ducha"],"Lavarse las manos con agua y jabón durante al menos 20 segundos reduce la transmisión de infecciones. Hacelo antes de comer o cocinar, después de ir al baño, de toser o estornudar y al volver de la calle."),
+S("Protección solar",OMS,"https://www.who.int/es","Prevención","media",["sol","solar","protector","bronce"],"Evitá el sol en las horas centrales del día, buscá sombra, usá ropa, gorro y anteojos, y aplicá protector solar de amplio espectro renovándolo cada pocas horas y después de mojarte."),
+S("Prevención y controles de salud",MS,MSU,"Prevención","media",["vacuna","prevenc","control","medico","consultar","doctor","chequeo","cuando"],"Mantener al día el Calendario Nacional de Vacunación, hacer controles periódicos de salud y consultar ante síntomas que persisten, empeoran o te preocupan son formas de prevención. Ante dolor intenso, fiebre alta persistente o dificultad para respirar, buscá atención médica sin demora.")
+];
+var CATS=["Primeros auxilios","Sueño","Alimentación","Actividad física","Salud mental","Higiene","Prevención"];
+var EXS=["Me quemé con agua caliente, ¿qué hago?","¿Cuántas horas debería dormir?","Tengo mucha tos","¿Cuándo debería consultar a un médico?"];
+var KEY="saludia_hist_v1",cat=null;
+function $(s){return document.querySelector(s);}
+function norm(t){return t.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"");}
+// ===== Historial 30 días =====
+function loadHist(){var lim=Date.now()-CFG.DAYS*864e5,h=[];try{h=JSON.parse(localStorage.getItem(KEY))||[];}catch(e){}
+ h=h.filter(function(e){return e.ts>lim;});try{localStorage.setItem(KEY,JSON.stringify(h));}catch(e){}return h;}
+function saveEntry(q,c){var h=loadHist();h.unshift({ts:Date.now(),q:q,c:c});try{localStorage.setItem(KEY,JSON.stringify(h.slice(0,50)));}catch(e){}renderHist();}
+function renderHist(){var ul=$("#hist");ul.innerHTML="";var h=loadHist();
+ if(!h.length){ul.innerHTML="<li>Todavía no hay consultas.</li>";return;}
+ h.slice(0,10).forEach(function(e){var li=document.createElement("li");li.textContent=new Date(e.ts).toLocaleDateString("es-AR")+" · "+e.c+" · "+e.q;ul.appendChild(li);});}
+// ===== Seguridad =====
+var EMERG=/(no respira|inconsciente|desmay|dolor de pecho|convulsi|sangrado (fuerte|abundante)|veneno|intoxic|ahog|atragant|quiero morir|suicid|hacerme dano|sobredosis)/;
+var BLOCK=/(dosis|cuantos (mg|miligramos|pastillas)|que (medicamento|pastilla|remedio)|ibuprofeno|paracetamol|antibiotic|diagnostic|tengo (cancer|diabetes|covid|depresion)|receta)/;
+// ===== RAG: recuperación solo en fuentes aprobadas =====
+function hit(k,n,w){return k.indexOf(" ")>0?n.indexOf(k)>=0:w.some(function(x){return k.length<=4?x===k:x.indexOf(k)===0;});}
+function retrieve(q){var n=norm(q),w=n.split(/[^a-z0-9]+/);
+ return SOURCES.filter(function(s){return s.aprobada;}).map(function(s){
+  var sc=s.keywords.filter(function(k){return hit(k,n,w);}).length;if(sc&&cat&&s.categoria===cat)sc++;return{s:s,sc:sc};})
+ .filter(function(x){return x.sc>0;}).sort(function(a,b){return b.sc-a.sc;}).slice(0,2).map(function(x){return x.s;});}
+async function answer(q){var n=norm(q);
+ if(EMERG.test(n))return{t:"⚠️ Esto puede ser una emergencia. Llamá YA al 911 o al 107, o andá a la guardia más cercana. No esperes.",src:[],c:"Emergencia"};
+ if(BLOCK.test(n))return{t:"No puedo diagnosticar, indicar medicamentos ni dosis, ni dar tratamientos personalizados. Consultá a un médico/a o farmacéutico/a.",src:[],c:"Fuera de alcance"};
+ var f=retrieve(q);
+ if(!f.length)return{t:"No tengo información suficiente en mis fuentes aprobadas para responder eso. Te recomiendo consultar a un profesional de la salud.",src:[],c:cat||"Sin categoría"};
+ var text=f.map(function(s){return s.contenido;}).join("\n\n");
+ if(CFG.API_URL){try{var r=await fetch(CFG.API_URL,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({question:q,passages:f.map(function(s){return{titulo:s.titulo,organismo:s.organismo,contenido:s.contenido};})})});
+  var d=await r.json();if(d.answer)text=d.answer;}catch(e){}}
+ return{t:text,src:f,c:f[0].categoria};}
+// ===== UI =====
+function add(cls,text,src){var d=document.createElement("div");d.className="m "+cls;d.textContent=text;
+ if(src&&src.length){var sm=document.createElement("small");sm.append("Fuentes consultadas:");
+  src.forEach(function(s){sm.append(document.createElement("br"),"• ");var a=document.createElement("a");a.href=s.url;a.target="_blank";a.textContent=s.organismo;sm.append(a);});d.appendChild(sm);}
+ $("#msgs").appendChild(d);$("#msgs").scrollTop=1e6;}
+async function ask(q){q=q.trim();if(!q)return;$("#q").value="";add("u",q);var r=await answer(q);add("b",r.t,r.src);saveEntry(q,r.c);}
+function init(){
+ CATS.forEach(function(c){var b=document.createElement("button");b.textContent=c;
+  b.onclick=function(){cat=cat===c?null:c;[].forEach.call($("#cats").children,function(x){x.classList.toggle("on",x.textContent===cat);});
+   $("#q").placeholder=cat?"Preguntá sobre "+cat.toLowerCase()+"…":"Escribí tu pregunta de salud…";$("#q").focus();};$("#cats").appendChild(b);});
+ EXS.forEach(function(e){var b=document.createElement("button");b.textContent=e;b.onclick=function(){ask(e);};$("#ex").appendChild(b);});
+ SOURCES.forEach(function(s){var li=document.createElement("li"),a=document.createElement("a");a.href=s.url;a.target="_blank";a.textContent=s.titulo;
+  li.append(a," — "+s.organismo+" · "+s.categoria+" · confiabilidad "+s.confiabilidad+" · consultada "+s.fechaConsulta);$("#srcs").appendChild(li);});
+ $("#send").onclick=function(){ask($("#q").value);};$("#q").onkeydown=function(e){if(e.key==="Enter")ask($("#q").value);};
+ $("#clear").onclick=function(){try{localStorage.removeItem(KEY);}catch(e){}renderHist();};
+ add("b","¡Hola! Soy SaludIA. Preguntame sobre salud general o tocá un ejemplo de abajo. No diagnostico ni receto.");renderHist();}
+init();
+</script></body></html>
